@@ -495,7 +495,7 @@ fun PatientHomeScreen(
                         }
 
                         TextButton(onClick = onNavigateToRoutines) {
-                            Text("Full Schedule", color = CardiacCrimson600, fontWeight = FontWeight.Bold)
+                            Text("Sched", color = CardiacCrimson600, fontWeight = FontWeight.Bold)
                         }
                     }
 
