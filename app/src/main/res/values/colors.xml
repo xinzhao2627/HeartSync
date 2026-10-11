@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="cardiac_crimson">#FFBA1A2E</color>
+    <color name="cardiac_anchor">#FF8A0014</color>
+    <color name="rose_pulse">#FFFF8FA3</color>
+    <color name="deep_navy">#FF0A1128</color>
+    <color name="surgical_white">#FFFFFFFF</color>
+    <color name="vitality_mint">#FF059669</color>
+    <color name="warning_amber">#FFD97706</color>
+</resources>
