@@ -149,6 +149,18 @@ class HeartSyncRepository private constructor(private val context: Context) {
         notificationManager.scheduleAllMedications(_medications.value, updated)
     }
 
+    fun toggleWeatherAlarms(enabled: Boolean) {
+        val current = _userPreferences.value
+        val updated = current.copy(weatherAlarmsEnabled = enabled, updatedAt = System.currentTimeMillis())
+        dbHelper.saveUserPreferences(updated)
+        _userPreferences.value = updated
+        if (enabled) {
+            notificationManager.schedulePeriodicWeatherCheckAlarm()
+        } else {
+            notificationManager.cancelPeriodicWeatherCheckAlarm()
+        }
+    }
+
     fun completeOnboarding(patient: PatientProfile, doctor: DoctorProfile) {
         dbHelper.savePatientProfile(patient)
         dbHelper.saveDoctorProfile(doctor)

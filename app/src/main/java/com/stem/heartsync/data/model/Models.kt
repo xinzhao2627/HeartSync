@@ -34,6 +34,7 @@ data class UserPreferences(
     val isOnboardingCompleted: Boolean = false,
     val routineAlarmsEnabled: Boolean = true,
     val medicationAlarmsEnabled: Boolean = true,
+    val weatherAlarmsEnabled: Boolean = true,
     val updatedAt: Long = System.currentTimeMillis()
 )
 

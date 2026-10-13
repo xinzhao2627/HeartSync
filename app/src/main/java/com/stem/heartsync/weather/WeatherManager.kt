@@ -167,6 +167,7 @@ class WeatherManager private constructor(private val context: Context) {
                 if (fetched != null) {
                     saveWeatherCache(fetched)
                     _weather.value = fetched
+                    evaluateWeatherAndNotify(fetched)
                 } else {
                     // Fallback to cache if network request failed
                     val cached = loadCachedWeather()
@@ -373,6 +374,53 @@ class WeatherManager private constructor(private val context: Context) {
         )
         _weather.value = data
         return data
+    }
+
+    fun evaluateWeatherAndNotify(weatherData: WeatherData, force: Boolean = false) {
+        val isHighHeat = weatherData.apparentTemperature >= 35.0 || weatherData.temperature >= 35.0
+        val isColdAlert = weatherData.apparentTemperature <= 19.0 || weatherData.temperature <= 19.0
+
+        if (isHighHeat || isColdAlert) {
+            val dbHelper = com.stem.heartsync.data.local.HeartSyncDbHelper.getInstance(context)
+            val prefs = dbHelper.getUserPreferences()
+            val notifManager = com.stem.heartsync.notification.HeartSyncNotificationManager.getInstance(context)
+            notifManager.showWeatherAlert(
+                temperature = weatherData.temperature,
+                apparentTemperature = weatherData.apparentTemperature,
+                conditionText = weatherData.conditionDescription,
+                cardiacTip = weatherData.cardiacHealthTip,
+                prefs = prefs,
+                isHighHeat = isHighHeat,
+                force = force
+            )
+        }
+    }
+
+    fun checkWeatherForAlerts() {
+        refreshWeather(forceNetwork = true)
+    }
+
+    fun triggerTestWeatherAlert(isHighHeat: Boolean) {
+        val dbHelper = com.stem.heartsync.data.local.HeartSyncDbHelper.getInstance(context)
+        val prefs = dbHelper.getUserPreferences()
+        val notifManager = com.stem.heartsync.notification.HeartSyncNotificationManager.getInstance(context)
+        val testTemp = if (isHighHeat) 36.0 else 17.0
+        val testApparent = if (isHighHeat) 40.0 else 16.0
+        val testDesc = if (isHighHeat) "Extreme Solar Heat Index" else "Cool Ambient Breeze"
+        val testTip = if (isHighHeat) {
+            "High Heat Alert: Extreme heat increases heart workload. Remain in shaded or cool spaces, rest frequently, and drink water."
+        } else {
+            "Cool Air Alert: Lower temperatures can induce vascular constriction. Wear warm layers to keep blood pressure steady."
+        }
+        notifManager.showWeatherAlert(
+            temperature = testTemp,
+            apparentTemperature = testApparent,
+            conditionText = testDesc,
+            cardiacTip = testTip,
+            prefs = prefs,
+            isHighHeat = isHighHeat,
+            force = true
+        )
     }
 
     private fun loadSavedManualCity(): CityPreset? {

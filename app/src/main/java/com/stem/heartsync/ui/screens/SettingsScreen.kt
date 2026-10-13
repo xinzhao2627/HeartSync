@@ -65,6 +65,7 @@ fun SettingsScreen(
     val locationStatus by weatherManager.locationStatus.collectAsState()
     val selectedCity by weatherManager.selectedCity.collectAsState()
     var showWeatherCityDialog by remember { mutableStateOf(false) }
+    var showWeatherTestDialog by remember { mutableStateOf(false) }
 
     // SAF Document Picker for audio/video file ringtones
     val audioPickerLauncher = rememberLauncherForActivityResult(
@@ -518,6 +519,95 @@ fun SettingsScreen(
                                 checkedTrackColor = ElectricBlue
                             )
                         )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = DeepAnchorNavy100)
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Extreme Weather Alarms Toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(RosePulse100),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.WbSunny,
+                                    contentDescription = null,
+                                    tint = CardiacCrimson600,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Extreme Weather Alerts",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = DeepAnchorNavy900
+                                )
+                                Text(
+                                    text = if (prefs.weatherAlarmsEnabled) "Alarms fire for dangerous heat (≥35°C) or cold (≤19°C)" else "Weather alarms turned off",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = DeepAnchorNavy600
+                                )
+                            }
+                        }
+
+                        Switch(
+                            checked = prefs.weatherAlarmsEnabled,
+                            onCheckedChange = {
+                                audioManager.playSfx(HeartSyncAudioManager.SFX_CLICK, prefs.classModeEnabled, prefs.sfxEnabled)
+                                repository.toggleWeatherAlarms(it)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = SurgicalWhite,
+                                checkedTrackColor = CardiacCrimson600
+                            )
+                        )
+                    }
+
+                    // Test Weather Alert button
+                    if (prefs.weatherAlarmsEnabled) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    audioManager.playSfx(HeartSyncAudioManager.SFX_CLICK, prefs.classModeEnabled, prefs.sfxEnabled)
+                                    showWeatherTestDialog = true
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.NotificationsActive,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(15.dp),
+                                    tint = DeepAnchorNavy900
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Test Weather Alert 🔔",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = DeepAnchorNavy900
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -1221,6 +1311,69 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(
                     onClick = { showWeatherCityDialog = false }
+                ) {
+                    Text("Close", fontWeight = FontWeight.Bold, color = DeepAnchorNavy900)
+                }
+            }
+        )
+    }
+
+    if (showWeatherTestDialog) {
+        AlertDialog(
+            onDismissRequest = { showWeatherTestDialog = false },
+            containerColor = SurgicalWhite,
+            shape = RoundedCornerShape(22.dp),
+            title = {
+                Text(
+                    text = "Test Weather Alarm Notification",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = DeepAnchorNavy900
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Trigger a live test alert with sound and vibration to test how HeartSync alerts students during extreme heat or cold conditions:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = DeepAnchorNavy600
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = {
+                            audioManager.playSfx(HeartSyncAudioManager.SFX_SUCCESS, prefs.classModeEnabled, prefs.sfxEnabled)
+                            weatherManager.triggerTestWeatherAlert(isHighHeat = true)
+                            showWeatherTestDialog = false
+                            Toast.makeText(context, "High Heat Warning alert sent! Check notification drawer 🔔", Toast.LENGTH_LONG).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = CardiacCrimson600),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("🔥 Test High Heat Alert (≥35°C)", fontWeight = FontWeight.Bold)
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Button(
+                        onClick = {
+                            audioManager.playSfx(HeartSyncAudioManager.SFX_SUCCESS, prefs.classModeEnabled, prefs.sfxEnabled)
+                            weatherManager.triggerTestWeatherAlert(isHighHeat = false)
+                            showWeatherTestDialog = false
+                            Toast.makeText(context, "Cold Weather alert sent! Check notification drawer 🔔", Toast.LENGTH_LONG).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("❄️ Test Cold Weather Alert (≤19°C)", fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showWeatherTestDialog = false }
                 ) {
                     Text("Close", fontWeight = FontWeight.Bold, color = DeepAnchorNavy900)
                 }

@@ -69,6 +69,9 @@ class HeartSyncDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_N
         try {
             db.execSQL("ALTER TABLE user_preferences ADD COLUMN medication_alarms_enabled INTEGER NOT NULL DEFAULT 1")
         } catch (_: Exception) {}
+        try {
+            db.execSQL("ALTER TABLE user_preferences ADD COLUMN weather_alarms_enabled INTEGER NOT NULL DEFAULT 1")
+        } catch (_: Exception) {}
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -84,6 +87,7 @@ class HeartSyncDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_N
                 is_onboarding_completed INTEGER NOT NULL DEFAULT 0,
                 routine_alarms_enabled INTEGER NOT NULL DEFAULT 1,
                 medication_alarms_enabled INTEGER NOT NULL DEFAULT 1,
+                weather_alarms_enabled INTEGER NOT NULL DEFAULT 1,
                 updated_at INTEGER NOT NULL
             )
             """.trimIndent()
@@ -272,6 +276,10 @@ class HeartSyncDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_N
             val medAlarms = if (medIdx != -1 && !cursor.isNull(medIdx)) {
                 cursor.getInt(medIdx) == 1
             } else true
+            val weatherIdx = cursor.getColumnIndex("weather_alarms_enabled")
+            val weatherAlarms = if (weatherIdx != -1 && !cursor.isNull(weatherIdx)) {
+                cursor.getInt(weatherIdx) == 1
+            } else true
             val updated = cursor.getLong(cursor.getColumnIndexOrThrow("updated_at"))
             prefs = UserPreferences(
                 id = 1L,
@@ -283,6 +291,7 @@ class HeartSyncDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_N
                 isOnboardingCompleted = isOnboarding,
                 routineAlarmsEnabled = routineAlarms,
                 medicationAlarmsEnabled = medAlarms,
+                weatherAlarmsEnabled = weatherAlarms,
                 updatedAt = updated
             )
         }
@@ -302,6 +311,7 @@ class HeartSyncDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_N
             put("is_onboarding_completed", if (prefs.isOnboardingCompleted) 1 else 0)
             put("routine_alarms_enabled", if (prefs.routineAlarmsEnabled) 1 else 0)
             put("medication_alarms_enabled", if (prefs.medicationAlarmsEnabled) 1 else 0)
+            put("weather_alarms_enabled", if (prefs.weatherAlarmsEnabled) 1 else 0)
             put("updated_at", System.currentTimeMillis())
         }
         db.insertWithOnConflict("user_preferences", null, values, SQLiteDatabase.CONFLICT_REPLACE)

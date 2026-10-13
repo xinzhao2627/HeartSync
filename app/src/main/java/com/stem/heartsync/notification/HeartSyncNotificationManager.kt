@@ -24,11 +24,13 @@ class HeartSyncNotificationManager private constructor(private val context: Cont
         const val CHANNEL_STANDARD_ID = "heartsync_standard_channel"
         const val CHANNEL_CLASS_MODE_ID = "heartsync_class_mode_channel"
         const val CHANNEL_DAILY_QUOTE_ID = "heartsync_daily_quote_channel"
+        const val CHANNEL_WEATHER_ALERT_ID = "heartsync_weather_alert_channel"
 
         const val NOTIFICATION_ID_DOCTOR_VISIT = 1001
         const val NOTIFICATION_ID_MEDICATION = 2001
         const val NOTIFICATION_ID_ROUTINE = 2002
         const val NOTIFICATION_ID_DAILY_QUOTE = 3001
+        const val NOTIFICATION_ID_WEATHER_ALERT = 4001
 
         val CLASS_MODE_VIBRATION_PATTERN = longArrayOf(0, 350, 150, 350, 150, 600)
 
@@ -86,9 +88,21 @@ class HeartSyncNotificationManager private constructor(private val context: Cont
                 enableVibration(true)
             }
 
+            // 4. Extreme Weather & Cardiac Alert Channel (Audible with High Importance)
+            val weatherChannel = NotificationChannel(
+                CHANNEL_WEATHER_ALERT_ID,
+                "HeartSync Extreme Weather & Cardiac Alerts",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Audible alerts and notifications when ambient temperature reaches levels that pose risks to cardiac health (heat strain or cold vasoconstriction)."
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 450, 150, 450, 150, 600)
+            }
+
             notificationManager.createNotificationChannel(standardChannel)
             notificationManager.createNotificationChannel(classModeChannel)
             notificationManager.createNotificationChannel(quoteChannel)
+            notificationManager.createNotificationChannel(weatherChannel)
         }
     }
 
@@ -490,6 +504,148 @@ class HeartSyncNotificationManager private constructor(private val context: Cont
             }
         } catch (e: SecurityException) {
             alarmManager.set(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
+        }
+    }
+
+    fun showWeatherAlert(
+        temperature: Double,
+        apparentTemperature: Double,
+        conditionText: String,
+        cardiacTip: String,
+        prefs: UserPreferences,
+        isHighHeat: Boolean,
+        force: Boolean = false
+    ) {
+        if (!prefs.weatherAlarmsEnabled) return
+
+        val weatherHistory = context.getSharedPreferences("heartsync_weather_alert_history", Context.MODE_PRIVATE)
+        val lastAlertTime = weatherHistory.getLong("last_alert_ts", 0L)
+        val lastAlertIsHeat = weatherHistory.getBoolean("last_alert_is_heat", !isHighHeat)
+        val now = System.currentTimeMillis()
+
+        // Debounce: don't re-fire within 2.5 hours unless temperature state changed or force flag is set
+        val cooldownMs = 150 * 60 * 1000L
+        if (!force && (now - lastAlertTime < cooldownMs) && (lastAlertIsHeat == isHighHeat)) {
+            return
+        }
+
+        weatherHistory.edit()
+            .putLong("last_alert_ts", now)
+            .putBoolean("last_alert_is_heat", isHighHeat)
+            .apply()
+
+        val isClassMode = prefs.classModeEnabled
+        val channelId = if (isClassMode) CHANNEL_CLASS_MODE_ID else CHANNEL_WEATHER_ALERT_ID
+
+        val openAppIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("EXTRA_NAVIGATE_TO", "HEALTH_STREAM")
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            NOTIFICATION_ID_WEATHER_ALERT,
+            openAppIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val soundUri = getAlarmSoundUri(prefs.customRingtoneUri)
+
+        val tempRounded = temperature.toInt()
+        val apparentRounded = apparentTemperature.toInt()
+
+        val title = if (isHighHeat) {
+            "Cardiac Alert: Extreme Heat Warning (${apparentRounded}°C)"
+        } else {
+            "Cardiac Alert: Cold Weather Warning (${tempRounded}°C)"
+        }
+
+        val body = if (isHighHeat) {
+            "Heat index is ${apparentRounded}°C. Stay hydrated and rest in cool or shaded areas."
+        } else {
+            "Ambient temperature dropped to ${tempRounded}°C. Wear warm layers to avoid blood pressure spikes."
+        }
+
+        val expandedText = if (isHighHeat) {
+            "Heat Index: ${apparentRounded}°C ($conditionText)\n\n$cardiacTip\n\nHigh heat increases cardiac workload. Drink water regularly and avoid strenuous outdoor activity during midday."
+        } else {
+            "Temperature: ${tempRounded}°C ($conditionText)\n\n$cardiacTip\n\nCold air induces peripheral vasoconstriction. Protect your chest and extremities with warm layers."
+        }
+
+        val builder = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .setBigContentTitle(title)
+                    .bigText(expandedText)
+            )
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+
+        if (isClassMode) {
+            builder.setSound(null)
+            builder.setVibrate(CLASS_MODE_VIBRATION_PATTERN)
+        } else {
+            builder.setSound(soundUri)
+            builder.setVibrate(longArrayOf(0, 450, 150, 450, 150, 600))
+        }
+
+        notificationManager.notify(NOTIFICATION_ID_WEATHER_ALERT, builder.build())
+    }
+
+    fun schedulePeriodicWeatherCheckAlarm() {
+        val intervalMs = 2 * 60 * 60 * 1000L // 2 hours
+        val triggerAt = System.currentTimeMillis() + intervalMs
+
+        val intent = Intent(context, WeatherAlertAlarmReceiver::class.java)
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            NOTIFICATION_ID_WEATHER_ALERT,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerAt,
+                        pendingIntent
+                    )
+                } else {
+                    alarmManager.setAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerAt,
+                        pendingIntent
+                    )
+                }
+            } else {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerAt,
+                    pendingIntent
+                )
+            }
+        } catch (e: SecurityException) {
+            alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+        }
+    }
+
+    fun cancelPeriodicWeatherCheckAlarm() {
+        val intent = Intent(context, WeatherAlertAlarmReceiver::class.java)
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            NOTIFICATION_ID_WEATHER_ALERT,
+            intent,
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+        )
+        if (pendingIntent != null) {
+            alarmManager.cancel(pendingIntent)
+            pendingIntent.cancel()
         }
     }
 

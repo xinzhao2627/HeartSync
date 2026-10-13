@@ -21,6 +21,9 @@ class MainActivity : ComponentActivity() {
         // Schedule daily midnight quote notification alarm
         notificationManager.scheduleDailyMidnightQuoteAlarm()
 
+        // Schedule periodic extreme weather monitoring alarm
+        notificationManager.schedulePeriodicWeatherCheckAlarm()
+
         setContent {
             HeartSyncApp(
                 repository = repository,
